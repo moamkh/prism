@@ -88,6 +88,34 @@ def token_usage(token_id: UUID, db: Session = Depends(get_db)):
     return crud_usage.get_token_model_usage(db, token_id=token_id)
 
 
+@router.post("/{token_id}/regenerate", response_model=TokenWithPlainKey)
+def regenerate_token_key(token_id: UUID, db: Session = Depends(get_db)):
+    obj = crud_token.get(db, token_id=token_id)
+    if not obj:
+        raise HTTPException(status_code=404, detail="Token not found")
+    db_obj, plain_key = crud_token.regenerate_key(db, db_obj=obj)
+    model_permissions = [
+        ModelPermissionOut(
+            model_id=perm.model_id,
+            max_input_tokens=perm.max_input_tokens,
+            max_output_tokens=perm.max_output_tokens,
+        )
+        for perm in db_obj.token_permissions
+    ]
+    return TokenWithPlainKey(
+        id=db_obj.id,
+        name=db_obj.name,
+        key_hash=db_obj.key_hash,
+        max_input_tokens=db_obj.max_input_tokens,
+        max_output_tokens=db_obj.max_output_tokens,
+        requests_per_minute=db_obj.requests_per_minute,
+        is_active=db_obj.is_active,
+        created_at=db_obj.created_at,
+        model_permissions=model_permissions,
+        plain_key=plain_key,
+    )
+
+
 @router.delete("/{token_id}", response_model=TokenOut)
 def delete_token(token_id: UUID, db: Session = Depends(get_db)):
     obj = crud_token.remove(db, token_id=token_id)

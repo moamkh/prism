@@ -77,6 +77,7 @@ export const tokensApi = {
   update: (id: string, data: Partial<Token> & { model_permissions?: Array<{ model_id: string; max_input_tokens: number | null; max_output_tokens: number | null }> }) => client.put(`/tokens/${id}`, data),
   remove: (id: string) => client.delete(`/tokens/${id}`),
   usage: (id: string) => client.get(`/tokens/${id}/usage`),
+  regenerate: (id: string) => client.post(`/tokens/${id}/regenerate`),
 };
 
 export const usageApi = {

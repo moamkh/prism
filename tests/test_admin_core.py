@@ -210,6 +210,19 @@ class TestTokens:
         assert resp.status_code == 200
         assert resp.json()["is_active"] is True
 
+    def test_regenerate_token_key(self, client, clean_tables):
+        token = client.post("/api/v1/tokens/", json={
+            "name": "RegenMe", "is_active": True, "model_permissions": [],
+        }).json()
+        token_id = token["id"]
+        old_hash = token["key_hash"]
+
+        resp = client.post(f"/api/v1/tokens/{token_id}/regenerate")
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data["plain_key"].startswith("rpm_")
+        assert data["key_hash"] != old_hash
+
     def test_delete_token(self, client, clean_tables):
         token = client.post("/api/v1/tokens/", json={
             "name": "DeleteMe", "is_active": True, "model_permissions": [],

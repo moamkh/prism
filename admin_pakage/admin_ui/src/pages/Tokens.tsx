@@ -135,6 +135,13 @@ export default function Tokens() {
     load();
   };
 
+  const handleRegenerate = async () => {
+    if (!editToken) return;
+    const res = await tokensApi.regenerate(editToken.id);
+    setPlainKey(res.data.plain_key);
+    load();
+  };
+
   const openUsageDialog = async (token: Token) => {
     setDialogToken(token);
     setDialogOpen(true);
@@ -304,9 +311,12 @@ export default function Tokens() {
                   (id, field, value) => updatePermField(id, field, value, true)
                 )}
               </div>
-              <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
-                <button type="button" onClick={closeEdit} style={{ ...btnPrimary, background: '#666' }}>Cancel</button>
-                <button type="submit" style={btnPrimary}>Save</button>
+              <div style={{ display: 'flex', gap: 8, justifyContent: 'space-between', alignItems: 'center' }}>
+                <button type="button" onClick={handleRegenerate} style={{ ...btnPrimary, background: '#e67e22' }}>Regenerate Key</button>
+                <div style={{ display: 'flex', gap: 8 }}>
+                  <button type="button" onClick={closeEdit} style={{ ...btnPrimary, background: '#666' }}>Cancel</button>
+                  <button type="submit" style={btnPrimary}>Save</button>
+                </div>
               </div>
             </form>
           </div>

@@ -88,5 +88,13 @@ class CRUDToken:
             db.commit()
         return obj
 
+    def regenerate_key(self, db: Session, db_obj: Token) -> tuple[Token, str]:
+        plain_key = generate_token()
+        db_obj.key_hash = hash_token(plain_key)
+        db.add(db_obj)
+        db.commit()
+        db.refresh(db_obj)
+        return db_obj, plain_key
+
 
 token = CRUDToken()
