@@ -216,6 +216,7 @@ func main() {
 	if corsHeaders == "" {
 		corsHeaders = "Authorization, Content-Type, X-Requested-With"
 	}
+	corsHandler := handler
 	handler = http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Access-Control-Allow-Origin", corsOrigin)
 		w.Header().Set("Access-Control-Allow-Methods", corsMethods)
@@ -224,7 +225,7 @@ func main() {
 			w.WriteHeader(http.StatusOK)
 			return
 		}
-		handler.ServeHTTP(w, r)
+		corsHandler.ServeHTTP(w, r)
 	})
 
 	port := os.Getenv("PORT")
