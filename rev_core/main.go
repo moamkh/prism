@@ -227,6 +227,7 @@ func main() {
 	})
 
 	// Panic recovery — catch any unexpected panic and return a clean 500 JSON.
+	recoveryHandler := handler
 	handler = http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		defer func() {
 			if rec := recover(); rec != nil {
@@ -236,7 +237,7 @@ func main() {
 				w.Write([]byte(`{"error":"Internal server error"}`))
 			}
 		}()
-		handler.ServeHTTP(w, r)
+		recoveryHandler.ServeHTTP(w, r)
 	})
 
 	port := os.Getenv("PORT")
