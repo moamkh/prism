@@ -6,6 +6,7 @@ const navItems = [
   { path: '/providers', label: 'Providers' },
   { path: '/models', label: 'Models' },
   { path: '/tokens', label: 'Tokens' },
+  { path: '/playground', label: 'Playground' },
   { path: '/usage', label: 'Usage Logs' },
   { path: '/logs', label: 'Proxy Logs' },
   { path: '/settings', label: 'Settings' },
