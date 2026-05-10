@@ -70,7 +70,6 @@ func main() {
 	})
 	publicMux.HandleFunc("/swagger/doc.json", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
-		w.Header().Set("Access-Control-Allow-Origin", "*")
 		w.Write(swaggerJSON)
 	})
 	publicMux.HandleFunc("/metrics", func(w http.ResponseWriter, r *http.Request) {
@@ -86,7 +85,6 @@ func main() {
 	})
 	publicMux.HandleFunc("/api/status", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
-		w.Header().Set("Access-Control-Allow-Origin", "*")
 
 		dbStats := database.Conn.Stats()
 		bufLen, bufCap, dropped := usageLogger.BufferStats()
@@ -151,7 +149,6 @@ func main() {
 	})
 	publicMux.HandleFunc("/api/logs", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
-		w.Header().Set("Access-Control-Allow-Origin", "*")
 		if r.Method == http.MethodDelete {
 			ringLog.Clear()
 			w.WriteHeader(http.StatusNoContent)

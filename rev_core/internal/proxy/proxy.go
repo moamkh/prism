@@ -178,6 +178,13 @@ func (p *Proxy) Handler(w http.ResponseWriter, r *http.Request) {
 		req.URL.Path = r.URL.Path
 		req.URL.RawQuery = r.URL.RawQuery
 	}
+	proxy.ModifyResponse = func(resp *http.Response) error {
+		resp.Header.Del("Access-Control-Allow-Origin")
+		resp.Header.Del("Access-Control-Allow-Methods")
+		resp.Header.Del("Access-Control-Allow-Headers")
+		resp.Header.Del("Access-Control-Expose-Headers")
+		return nil
+	}
 
 	// Configure proxy transport (only if provider has enable_proxy=true)
 	log.Printf("[PROXY] Provider=%s EnableProxy=%v HTTPProxy=%v SOCKS5Proxy=%v",
@@ -470,6 +477,15 @@ func (p *Proxy) HandleModelGet(w http.ResponseWriter, r *http.Request, modelID s
 		body, _ = json.Marshal(respMap)
 	}
 	w.Header().Set("Content-Type", "application/json")
+	// Strip upstream CORS headers — the global CORS wrapper handles them
+	for k := range w.Header() {
+		if strings.EqualFold(k, "Access-Control-Allow-Origin") ||
+			strings.EqualFold(k, "Access-Control-Allow-Methods") ||
+			strings.EqualFold(k, "Access-Control-Allow-Headers") ||
+			strings.EqualFold(k, "Access-Control-Expose-Headers") {
+			w.Header().Del(k)
+		}
+	}
 	w.WriteHeader(resp.StatusCode)
 	w.Write(body)
 }
