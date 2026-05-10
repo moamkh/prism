@@ -1,6 +1,6 @@
 import { useEffect, useState, useRef } from 'react';
 
-const PROXY_BASE = (import.meta as any).env?.VITE_PROXY_BASE_URL || 'http://localhost:8080';
+const API_BASE = (import.meta as any).env?.VITE_API_BASE_URL || '/api/v1';
 
 export default function Logs() {
   const [lines, setLines] = useState<string[]>([]);
@@ -12,7 +12,7 @@ export default function Logs() {
   const load = async () => {
     setLoading(true);
     try {
-      const res = await fetch(`${PROXY_BASE}/api/logs`);
+      const res = await fetch(`${API_BASE}/proxy/logs`);
       const data = await res.json();
       setLines(data.lines || []);
     } catch (e) {
@@ -24,7 +24,7 @@ export default function Logs() {
 
   const clear = async () => {
     try {
-      await fetch(`${PROXY_BASE}/api/logs`, { method: 'DELETE' });
+      await fetch(`${API_BASE}/proxy/logs`, { method: 'DELETE' });
       setLines([]);
     } catch (e) {
       console.error('Failed to clear logs', e);

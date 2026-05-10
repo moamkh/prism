@@ -11,6 +11,7 @@ class Settings(BaseSettings):
     secret_key: str = os.getenv("SECRET_KEY", "changeme")
     cors_origins: str = os.getenv("CORS_ORIGINS", "*")
     display_timezone: str = os.getenv("DISPLAY_TIMEZONE", "UTC")
+    proxy_base_url: str = os.getenv("PROXY_BASE_URL", "http://localhost:8080")
 
     class Config:
         env_file = ".env"

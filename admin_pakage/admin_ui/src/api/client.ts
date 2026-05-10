@@ -94,4 +94,11 @@ export const dashboardApi = {
   stats: () => client.get('/dashboard/stats'),
 };
 
+export const proxyApi = {
+  logs: () => client.get('/proxy/logs'),
+  clearLogs: () => client.delete('/proxy/logs'),
+  status: () => client.get('/proxy/status'),
+  metrics: () => client.get('/proxy/metrics'),
+};
+
 import type { Provider, Model, Token } from '../types';
