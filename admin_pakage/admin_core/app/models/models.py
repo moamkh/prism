@@ -30,7 +30,7 @@ class Provider(Base):
     updated_at = Column(Integer, nullable=False)
 
     models = relationship("Model", back_populates="provider", cascade="all, delete-orphan")
-    usage_logs = relationship("UsageLog", back_populates="provider")
+    usage_logs = relationship("UsageLog", back_populates="provider", passive_deletes=True)
 
 
 class Model(Base):
@@ -44,7 +44,7 @@ class Model(Base):
     created_at = Column(Integer, nullable=False)
 
     provider = relationship("Provider", back_populates="models")
-    usage_logs = relationship("UsageLog", back_populates="model")
+    usage_logs = relationship("UsageLog", back_populates="model", passive_deletes=True)
     token_permissions = relationship("TokenModelPermission", back_populates="model", cascade="all, delete-orphan")
 
     __table_args__ = (UniqueConstraint("provider_id", "model_id", name="uix_provider_model"),)
@@ -63,7 +63,7 @@ class Token(Base):
     created_at = Column(Integer, nullable=False)
 
     token_permissions = relationship("TokenModelPermission", back_populates="token", cascade="all, delete-orphan")
-    usage_logs = relationship("UsageLog", back_populates="token")
+    usage_logs = relationship("UsageLog", back_populates="token", passive_deletes=True)
 
 
 class TokenModelPermission(Base):

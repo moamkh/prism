@@ -228,6 +228,118 @@ class TestConfig:
         assert resp.json()["value"] == "200"
 
 
+class TestUsageLogRetention:
+    """Verify usage logs are NOT deleted when tokens or models are removed."""
+
+    def test_delete_token_preserves_usage_log(self, client, clean_tables, db_session):
+        from app.models.models import Token, UsageLog
+        import uuid
+
+        # Create token
+        token_resp = client.post("/api/v1/tokens/", json={
+            "name": "LogToken", "is_active": True, "model_permissions": [],
+        }).json()
+        token_id = token_resp["id"]
+
+        # Insert a usage log directly (normally done by Go backend)
+        log = UsageLog(
+            id=uuid.uuid4(),
+            token_id=token_id,
+            provider_id=None,
+            model_id=None,
+            input_tokens=10,
+            output_tokens=5,
+            total_tokens=15,
+            created_at=1700000000,
+        )
+        db_session.add(log)
+        db_session.commit()
+
+        # Delete the token
+        resp = client.delete(f"/api/v1/tokens/{token_id}")
+        assert resp.status_code == 200
+
+        # Log must still exist with token_id=NULL
+        db_session.expire_all()
+        retained = db_session.query(UsageLog).filter(UsageLog.id == log.id).first()
+        assert retained is not None
+        assert retained.token_id is None
+        assert retained.input_tokens == 10
+
+    def test_delete_model_preserves_usage_log(self, client, clean_tables, db_session):
+        from app.models.models import Provider, Model, UsageLog
+        import uuid
+
+        # Create provider + model
+        provider = client.post("/api/v1/providers/", json={
+            "name": "P1", "base_url": "https://a.com", "api_token": "t1",
+        }).json()
+        model_resp = client.post("/api/v1/models/", json={
+            "provider_id": provider["id"], "model_id": "gpt-4", "is_active": True,
+        }).json()
+        model_id = model_resp["id"]
+
+        # Insert a usage log for this model
+        log = UsageLog(
+            id=uuid.uuid4(),
+            token_id=None,
+            provider_id=provider["id"],
+            model_id=model_id,
+            input_tokens=20,
+            output_tokens=10,
+            total_tokens=30,
+            created_at=1700000000,
+        )
+        db_session.add(log)
+        db_session.commit()
+
+        # Delete the model
+        resp = client.delete(f"/api/v1/models/{model_id}")
+        assert resp.status_code == 200
+
+        # Log must still exist with model_id=NULL
+        db_session.expire_all()
+        retained = db_session.query(UsageLog).filter(UsageLog.id == log.id).first()
+        assert retained is not None
+        assert retained.model_id is None
+        assert retained.input_tokens == 20
+
+    def test_delete_provider_preserves_usage_log(self, client, clean_tables, db_session):
+        from app.models.models import Provider, UsageLog
+        import uuid
+
+        # Create provider
+        provider = client.post("/api/v1/providers/", json={
+            "name": "P1", "base_url": "https://a.com", "api_token": "t1",
+        }).json()
+        provider_id = provider["id"]
+
+        # Insert a usage log for this provider
+        log = UsageLog(
+            id=uuid.uuid4(),
+            token_id=None,
+            provider_id=provider_id,
+            model_id=None,
+            input_tokens=30,
+            output_tokens=15,
+            total_tokens=45,
+            created_at=1700000000,
+        )
+        db_session.add(log)
+        db_session.commit()
+
+        # Delete the provider
+        resp = client.delete(f"/api/v1/providers/{provider_id}")
+        assert resp.status_code == 200
+
+        # Log must still exist with provider_id=NULL
+        db_session.expire_all()
+        retained = db_session.query(UsageLog).filter(UsageLog.id == log.id).first()
+        assert retained is not None
+        assert retained.provider_id is None
+        assert retained.input_tokens == 30
+
+
 class TestDashboard:
     """Test dashboard stats."""
 
