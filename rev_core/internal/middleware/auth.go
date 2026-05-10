@@ -113,6 +113,12 @@ func (a *AuthMiddleware) Handler(next http.Handler) http.Handler {
 			return
 		}
 
+		if !token.IsActive {
+			metrics.AuthFailuresTotal.WithLabelValues("inactive_token").Inc()
+			http.Error(w, `{"error":"Token is inactive"}`, http.StatusUnauthorized)
+			return
+		}
+
 		// Rate limit check
 		rpm := 0
 		if token.RequestsPerMinute.Valid {

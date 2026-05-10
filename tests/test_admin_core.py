@@ -196,6 +196,20 @@ class TestTokens:
         perm_model_ids = [p["model_id"] for p in data["model_permissions"]]
         assert model["id"] in perm_model_ids
 
+    def test_update_token_active(self, client, clean_tables):
+        token = client.post("/api/v1/tokens/", json={
+            "name": "ToggleMe", "is_active": True, "model_permissions": [],
+        }).json()
+        token_id = token["id"]
+        # Deactivate
+        resp = client.put(f"/api/v1/tokens/{token_id}", json={"is_active": False})
+        assert resp.status_code == 200
+        assert resp.json()["is_active"] is False
+        # Reactivate
+        resp = client.put(f"/api/v1/tokens/{token_id}", json={"is_active": True})
+        assert resp.status_code == 200
+        assert resp.json()["is_active"] is True
+
     def test_delete_token(self, client, clean_tables):
         token = client.post("/api/v1/tokens/", json={
             "name": "DeleteMe", "is_active": True, "model_permissions": [],

@@ -24,6 +24,15 @@ export default function Tokens() {
   const [dialogToken, setDialogToken] = useState<Token | null>(null);
   const [usageData, setUsageData] = useState<TokenModelUsage[]>([]);
   const [usageLoading, setUsageLoading] = useState(false);
+  const [editToken, setEditToken] = useState<Token | null>(null);
+  const [editForm, setEditForm] = useState({
+    name: '',
+    max_input_tokens: '',
+    max_output_tokens: '',
+    requests_per_minute: '',
+    is_active: true,
+    model_permissions: [] as ModelPermission[],
+  });
 
   const load = () => {
     tokensApi.list().then((res) => setTokens(res.data));
@@ -34,8 +43,9 @@ export default function Tokens() {
     load();
   }, []);
 
-  const toggleModel = (id: string) => {
-    setForm((prev) => {
+  const toggleModel = (id: string, isEdit: boolean) => {
+    const setter = isEdit ? setEditForm : setForm;
+    setter((prev) => {
       const exists = prev.model_permissions.find((p) => p.model_id === id);
       if (exists) {
         return {
@@ -50,8 +60,9 @@ export default function Tokens() {
     });
   };
 
-  const updatePermField = (modelId: string, field: keyof ModelPermission, value: string) => {
-    setForm((prev) => ({
+  const updatePermField = (modelId: string, field: keyof ModelPermission, value: string, isEdit: boolean) => {
+    const setter = isEdit ? setEditForm : setForm;
+    setter((prev) => ({
       ...prev,
       model_permissions: prev.model_permissions.map((p) =>
         p.model_id === modelId ? { ...p, [field]: value } : p
@@ -84,6 +95,46 @@ export default function Tokens() {
     load();
   };
 
+  const openEdit = (token: Token) => {
+    setEditToken(token);
+    setEditForm({
+      name: token.name,
+      max_input_tokens: token.max_input_tokens?.toString() || '',
+      max_output_tokens: token.max_output_tokens?.toString() || '',
+      requests_per_minute: token.requests_per_minute?.toString() || '',
+      is_active: token.is_active,
+      model_permissions: token.model_permissions?.map((p) => ({
+        model_id: p.model_id,
+        max_input_tokens: p.max_input_tokens?.toString() || '',
+        max_output_tokens: p.max_output_tokens?.toString() || '',
+      })) || [],
+    });
+  };
+
+  const closeEdit = () => {
+    setEditToken(null);
+  };
+
+  const handleEditSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editToken) return;
+    const payload = {
+      name: editForm.name,
+      max_input_tokens: editForm.max_input_tokens ? parseInt(editForm.max_input_tokens) : null,
+      max_output_tokens: editForm.max_output_tokens ? parseInt(editForm.max_output_tokens) : null,
+      requests_per_minute: editForm.requests_per_minute ? parseInt(editForm.requests_per_minute) : null,
+      is_active: editForm.is_active,
+      model_permissions: editForm.model_permissions.map((p) => ({
+        model_id: p.model_id,
+        max_input_tokens: p.max_input_tokens ? parseInt(p.max_input_tokens) : null,
+        max_output_tokens: p.max_output_tokens ? parseInt(p.max_output_tokens) : null,
+      })),
+    };
+    await tokensApi.update(editToken.id, payload);
+    setEditToken(null);
+    load();
+  };
+
   const openUsageDialog = async (token: Token) => {
     setDialogToken(token);
     setDialogOpen(true);
@@ -102,6 +153,59 @@ export default function Tokens() {
     setDialogToken(null);
     setUsageData([]);
   };
+
+  const renderModelTable = (
+    permList: ModelPermission[],
+    onToggle: (id: string) => void,
+    onUpdate: (id: string, field: keyof ModelPermission, value: string) => void
+  ) => (
+    <table style={{ width: '100%', borderCollapse: 'collapse', background: '#f8f8f8', borderRadius: 8, overflow: 'hidden', marginTop: 8 }}>
+      <thead>
+        <tr style={{ background: '#eee' }}>
+          <th style={thStyleSmall}>Model ID</th>
+          <th style={thStyleSmall}>Display ID</th>
+          <th style={thStyleSmall}>Allow</th>
+          <th style={thStyleSmall}>Max Input Tokens</th>
+          <th style={thStyleSmall}>Max Output Tokens</th>
+        </tr>
+      </thead>
+      <tbody>
+        {models.map((m) => {
+          const perm = permList.find((p) => p.model_id === m.id);
+          const checked = !!perm;
+          return (
+            <tr key={m.id} style={{ borderBottom: '1px solid #eee' }}>
+              <td style={tdStyleSmall}><strong>{m.model_id}</strong></td>
+              <td style={tdStyleSmall}>{m.display_model_id || '-'}</td>
+              <td style={tdStyleSmall}>
+                <input type="checkbox" checked={checked} onChange={() => onToggle(m.id)} />
+              </td>
+              <td style={tdStyleSmall}>
+                <input
+                  placeholder="Max input"
+                  type="number"
+                  value={perm?.max_input_tokens || ''}
+                  onChange={(e) => onUpdate(m.id, 'max_input_tokens', e.target.value)}
+                  style={{ ...inputStyle, width: 120 }}
+                  disabled={!checked}
+                />
+              </td>
+              <td style={tdStyleSmall}>
+                <input
+                  placeholder="Max output"
+                  type="number"
+                  value={perm?.max_output_tokens || ''}
+                  onChange={(e) => onUpdate(m.id, 'max_output_tokens', e.target.value)}
+                  style={{ ...inputStyle, width: 120 }}
+                  disabled={!checked}
+                />
+              </td>
+            </tr>
+          );
+        })}
+      </tbody>
+    </table>
+  );
 
   return (
     <div>
@@ -126,52 +230,11 @@ export default function Tokens() {
         </div>
         <div style={{ marginBottom: 12 }}>
           <strong>Allowed Models & Per-Model Limits:</strong>
-          <table style={{ width: '100%', borderCollapse: 'collapse', background: '#f8f8f8', borderRadius: 8, overflow: 'hidden', marginTop: 8 }}>
-            <thead>
-              <tr style={{ background: '#eee' }}>
-                <th style={thStyleSmall}>Model ID</th>
-                <th style={thStyleSmall}>Display ID</th>
-                <th style={thStyleSmall}>Allow</th>
-                <th style={thStyleSmall}>Max Input Tokens</th>
-                <th style={thStyleSmall}>Max Output Tokens</th>
-              </tr>
-            </thead>
-            <tbody>
-              {models.map((m) => {
-                const perm = form.model_permissions.find((p) => p.model_id === m.id);
-                const checked = !!perm;
-                return (
-                  <tr key={m.id} style={{ borderBottom: '1px solid #eee' }}>
-                    <td style={tdStyleSmall}><strong>{m.model_id}</strong></td>
-                    <td style={tdStyleSmall}>{m.display_model_id || '-'}</td>
-                    <td style={tdStyleSmall}>
-                      <input type="checkbox" checked={checked} onChange={() => toggleModel(m.id)} />
-                    </td>
-                    <td style={tdStyleSmall}>
-                      <input
-                        placeholder="Max input"
-                        type="number"
-                        value={perm?.max_input_tokens || ''}
-                        onChange={(e) => updatePermField(m.id, 'max_input_tokens', e.target.value)}
-                        style={{ ...inputStyle, width: 120 }}
-                        disabled={!checked}
-                      />
-                    </td>
-                    <td style={tdStyleSmall}>
-                      <input
-                        placeholder="Max output"
-                        type="number"
-                        value={perm?.max_output_tokens || ''}
-                        onChange={(e) => updatePermField(m.id, 'max_output_tokens', e.target.value)}
-                        style={{ ...inputStyle, width: 120 }}
-                        disabled={!checked}
-                      />
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
+          {renderModelTable(
+            form.model_permissions,
+            (id) => toggleModel(id, false),
+            (id, field, value) => updatePermField(id, field, value, false)
+          )}
         </div>
         <button type="submit" style={btnPrimary}>Create Token</button>
       </form>
@@ -206,12 +269,49 @@ export default function Tokens() {
               <td style={tdStyle}>{t.is_active ? 'Yes' : 'No'}</td>
               <td style={tdStyle}>
                 <button onClick={() => openUsageDialog(t)} style={btnSmall}>Usage</button>
+                <button onClick={() => openEdit(t)} style={btnSmall}>Edit</button>
                 <button onClick={() => remove(t.id)} style={btnSmallDanger}>Delete</button>
               </td>
             </tr>
           ))}
         </tbody>
       </table>
+
+      {/* Edit Modal */}
+      {editToken && (
+        <div style={overlayStyle} onClick={closeEdit}>
+          <div style={dialogStyle} onClick={(e) => e.stopPropagation()}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+              <h3 style={{ margin: 0 }}>Edit Token: {editToken.name}</h3>
+              <button onClick={closeEdit} style={btnClose}>×</button>
+            </div>
+            <form onSubmit={handleEditSubmit}>
+              <div style={{ display: 'grid', gap: 12, gridTemplateColumns: 'repeat(auto-fill, minmax(180px, 1fr))', marginBottom: 12 }}>
+                <input placeholder="Name" value={editForm.name} onChange={(e) => setEditForm({ ...editForm, name: e.target.value })} required style={inputStyle} />
+                <input placeholder="Max Input Tokens" type="number" value={editForm.max_input_tokens} onChange={(e) => setEditForm({ ...editForm, max_input_tokens: e.target.value })} style={inputStyle} />
+                <input placeholder="Max Output Tokens" type="number" value={editForm.max_output_tokens} onChange={(e) => setEditForm({ ...editForm, max_output_tokens: e.target.value })} style={inputStyle} />
+                <input placeholder="Req/Min" type="number" value={editForm.requests_per_minute} onChange={(e) => setEditForm({ ...editForm, requests_per_minute: e.target.value })} style={inputStyle} />
+                <label style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                  <input type="checkbox" checked={editForm.is_active} onChange={(e) => setEditForm({ ...editForm, is_active: e.target.checked })} />
+                  Active
+                </label>
+              </div>
+              <div style={{ marginBottom: 12 }}>
+                <strong>Allowed Models & Per-Model Limits:</strong>
+                {renderModelTable(
+                  editForm.model_permissions,
+                  (id) => toggleModel(id, true),
+                  (id, field, value) => updatePermField(id, field, value, true)
+                )}
+              </div>
+              <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
+                <button type="button" onClick={closeEdit} style={{ ...btnPrimary, background: '#666' }}>Cancel</button>
+                <button type="submit" style={btnPrimary}>Save</button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
 
       {dialogOpen && dialogToken && (
         <div style={overlayStyle} onClick={closeDialog}>
@@ -270,5 +370,5 @@ const overlayStyle: React.CSSProperties = {
   background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000
 };
 const dialogStyle: React.CSSProperties = {
-  background: '#fff', padding: 24, borderRadius: 8, minWidth: 420, maxWidth: 560, width: '90%', maxHeight: '80vh', overflow: 'auto'
+  background: '#fff', padding: 24, borderRadius: 8, minWidth: 420, maxWidth: 720, width: '90%', maxHeight: '85vh', overflow: 'auto'
 };
