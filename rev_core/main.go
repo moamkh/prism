@@ -7,6 +7,7 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"runtime/debug"
 	"strings"
 	"sync/atomic"
 	"time"
@@ -223,6 +224,19 @@ func main() {
 			return
 		}
 		corsHandler.ServeHTTP(w, r)
+	})
+
+	// Panic recovery — catch any unexpected panic and return a clean 500 JSON.
+	handler = http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		defer func() {
+			if rec := recover(); rec != nil {
+				log.Printf("[PANIC] %v\n%s", rec, debug.Stack())
+				w.Header().Set("Content-Type", "application/json")
+				w.WriteHeader(http.StatusInternalServerError)
+				w.Write([]byte(`{"error":"Internal server error"}`))
+			}
+		}()
+		handler.ServeHTTP(w, r)
 	})
 
 	port := os.Getenv("PORT")

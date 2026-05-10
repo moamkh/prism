@@ -48,31 +48,41 @@ func (l *Limiter) refreshProviders() {
 		qt = 30
 	}
 
+	l.mu.Lock()
+	defer l.mu.Unlock()
+
+	// Reuse existing semaphores so in-flight requests don't panic on Release.
 	newSems := make(map[uuid.UUID]*providerSem)
-	newInflight := make(map[uuid.UUID]int64)
 	for _, p := range providers {
 		maxReq := int64(p.MaxConcurrentRequests)
 		if maxReq <= 0 {
 			maxReq = 100
 		}
-		newSems[p.ID] = &providerSem{
-			sem:       semaphore.NewWeighted(maxReq),
-			maxWeight: maxReq,
+		if existing, ok := l.sems[p.ID]; ok && existing != nil && existing.sem != nil {
+			newSems[p.ID] = &providerSem{
+				sem:       existing.sem,
+				maxWeight: maxReq,
+			}
+		} else {
+			newSems[p.ID] = &providerSem{
+				sem:       semaphore.NewWeighted(maxReq),
+				maxWeight: maxReq,
+			}
 		}
-		// Preserve existing inflight counts for providers that are still active
-		l.mu.RLock()
-		if v, ok := l.inflight[p.ID]; ok {
-			newInflight[p.ID] = v
-		}
-		l.mu.RUnlock()
 		metrics.LimiterMax.WithLabelValues(p.ID.String()).Set(float64(maxReq))
 	}
 
-	l.mu.Lock()
+	// Drop inflight counters for providers that were removed.
+	newInflight := make(map[uuid.UUID]int64)
+	for id, v := range l.inflight {
+		if _, ok := newSems[id]; ok {
+			newInflight[id] = v
+		}
+	}
+
 	l.sems = newSems
 	l.inflight = newInflight
 	l.queueTimeout = time.Duration(qt) * time.Second
-	l.mu.Unlock()
 }
 
 func (l *Limiter) providerPoller() {
@@ -107,10 +117,15 @@ func (l *Limiter) Acquire(ctx context.Context, providerID uuid.UUID) error {
 }
 
 func (l *Limiter) Release(providerID uuid.UUID) {
+	defer func() {
+		if rec := recover(); rec != nil {
+			// Defensive: semaphore panic should never crash the server.
+		}
+	}()
 	l.mu.RLock()
 	ps, ok := l.sems[providerID]
 	l.mu.RUnlock()
-	if ok && ps != nil {
+	if ok && ps != nil && ps.sem != nil {
 		ps.sem.Release(1)
 		l.mu.Lock()
 		if l.inflight[providerID] > 0 {
