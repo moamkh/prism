@@ -50,6 +50,8 @@ export interface UsageLog {
   token_id: string | null;
   provider_id: string | null;
   model_id: string | null;
+  model_name: string | null;
+  provider_name: string | null;
   request_path: string | null;
   input_tokens: number;
   output_tokens: number;

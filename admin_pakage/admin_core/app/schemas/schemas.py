@@ -166,6 +166,18 @@ class UsageLogOut(BaseModel):
         return format_epoch(value)
 
 
+class UsageLogTotals(BaseModel):
+    count: int
+    total_input_tokens: int
+    total_output_tokens: int
+    total_tokens: int
+
+
+class UsageLogFilteredOut(BaseModel):
+    logs: List[UsageLogOut]
+    totals: UsageLogTotals
+
+
 class UsageAggregate(BaseModel):
     group_key: str
     total_requests: int

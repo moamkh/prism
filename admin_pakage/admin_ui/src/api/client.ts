@@ -82,6 +82,7 @@ export const tokensApi = {
 
 export const usageApi = {
   logs: (params?: Record<string, unknown>) => client.get('/usage/logs', { params }),
+  filtered: (params?: Record<string, unknown>) => client.get('/usage/logs/filtered', { params }),
   aggregate: (days?: number) => client.get('/usage/aggregate', { params: { days } }),
 };
 
