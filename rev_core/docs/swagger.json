@@ -1,0 +1,273 @@
+{
+  "openapi": "3.0.3",
+  "info": {
+    "title": "Reverse Proxy Manager - LLM Gateway",
+    "description": "Secure reverse proxy for OpenAI-compatible upstream backends. Routes requests by model, enforces token-level quotas, and records usage.",
+    "version": "1.0.0"
+  },
+  "servers": [
+    {
+      "url": "http://localhost:8080"
+    }
+  ],
+  "components": {
+    "securitySchemes": {
+      "BearerAuth": {
+        "type": "http",
+        "scheme": "bearer",
+        "bearerFormat": "API Key",
+        "description": "Send token via Authorization: Bearer <TOKEN>"
+      }
+    },
+    "schemas": {
+      "ChatCompletionRequest": {
+        "type": "object",
+        "required": ["model", "messages"],
+        "properties": {
+          "model": { "type": "string" },
+          "messages": {
+            "type": "array",
+            "items": { "type": "object", "additionalProperties": true }
+          },
+          "stream": { "type": "boolean", "default": false },
+          "temperature": { "type": "number" },
+          "max_tokens": { "type": "integer" },
+          "max_completion_tokens": { "type": "integer" },
+          "top_p": { "type": "number" },
+          "top_k": { "type": "integer" },
+          "tools": { "type": "array", "items": { "type": "object" } },
+          "tool_choice": { "oneOf": [{ "type": "string" }, { "type": "object" }] }
+        },
+        "additionalProperties": true
+      },
+      "ResponsesRequest": {
+        "type": "object",
+        "required": ["model"],
+        "properties": {
+          "model": { "type": "string" },
+          "input": { "oneOf": [{ "type": "string" }, { "type": "array", "items": { "type": "object" } }] },
+          "messages": { "type": "array", "items": { "type": "object" } },
+          "instructions": { "type": "string" },
+          "stream": { "type": "boolean", "default": false },
+          "max_output_tokens": { "type": "integer" },
+          "max_tokens": { "type": "integer" },
+          "temperature": { "type": "number" },
+          "top_p": { "type": "number" },
+          "tools": { "type": "array", "items": { "type": "object" } },
+          "tool_choice": { "oneOf": [{ "type": "string" }, { "type": "object" }] },
+          "metadata": { "type": "object", "additionalProperties": true }
+        },
+        "additionalProperties": true
+      },
+      "CompletionRequest": {
+        "type": "object",
+        "required": ["model", "prompt"],
+        "properties": {
+          "model": { "type": "string" },
+          "prompt": { "oneOf": [{ "type": "string" }, { "type": "array", "items": { "type": "string" } }] },
+          "stream": { "type": "boolean", "default": false },
+          "max_tokens": { "type": "integer" },
+          "temperature": { "type": "number" },
+          "top_p": { "type": "number" }
+        },
+        "additionalProperties": true
+      },
+      "ToolExecuteRequest": {
+        "type": "object",
+        "properties": {
+          "tool": { "type": "string" },
+          "model": { "type": "string" },
+          "arguments": { "type": "object", "additionalProperties": true }
+        },
+        "additionalProperties": true
+      },
+      "HealthResponse": {
+        "type": "object",
+        "properties": {
+          "status": { "type": "string", "example": "ok" }
+        }
+      }
+    }
+  },
+  "paths": {
+    "/health": {
+      "get": {
+        "summary": "Health check",
+        "description": "Returns the gateway process health status. Does not proxy to upstream.",
+        "responses": {
+          "200": {
+            "description": "Gateway is healthy",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/HealthResponse" }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/responses": {
+      "post": {
+        "summary": "OpenAI Responses API",
+        "description": "Forwards OpenAI-compatible Responses API payloads to the upstream provider matched by model.",
+        "security": [{ "BearerAuth": [] }],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/ResponsesRequest" },
+              "example": {
+                "model": "gpt-4",
+                "input": "Write a haiku about distributed systems.",
+                "stream": false,
+                "max_output_tokens": 128
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": { "schema": { "type": "object" } },
+              "text/event-stream": { "schema": { "type": "string" } }
+            }
+          },
+          "401": { "description": "Missing or invalid token" },
+          "403": { "description": "Token not authorized for this model" },
+          "429": { "description": "Rate limit or concurrency limit exceeded" }
+        }
+      }
+    },
+    "/v1/chat/completions": {
+      "post": {
+        "summary": "Chat completions",
+        "description": "Forwards OpenAI-compatible chat completion requests to the upstream provider matched by model.",
+        "security": [{ "BearerAuth": [] }],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/ChatCompletionRequest" },
+              "example": {
+                "model": "gpt-4",
+                "messages": [{ "role": "user", "content": "Hello!" }],
+                "stream": false
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": { "schema": { "type": "object" } },
+              "text/event-stream": { "schema": { "type": "string" } }
+            }
+          },
+          "401": { "description": "Missing or invalid token" },
+          "403": { "description": "Token not authorized for this model" },
+          "429": { "description": "Rate limit or concurrency limit exceeded" }
+        }
+      }
+    },
+    "/v1/completions": {
+      "post": {
+        "summary": "Text completions",
+        "description": "Forwards OpenAI-compatible legacy completion requests to the upstream provider matched by model.",
+        "security": [{ "BearerAuth": [] }],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/CompletionRequest" },
+              "example": {
+                "model": "gpt-4",
+                "prompt": "Once upon a time",
+                "max_tokens": 64
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": { "schema": { "type": "object" } },
+              "text/event-stream": { "schema": { "type": "string" } }
+            }
+          },
+          "401": { "description": "Missing or invalid token" },
+          "403": { "description": "Token not authorized for this model" },
+          "429": { "description": "Rate limit or concurrency limit exceeded" }
+        }
+      }
+    },
+    "/v1/models": {
+      "get": {
+        "summary": "List models",
+        "description": "Forwards to upstream /v1/models via the first active provider.",
+        "security": [{ "BearerAuth": [] }],
+        "responses": {
+          "200": { "description": "Model list", "content": { "application/json": { "schema": { "type": "object" } } } },
+          "401": { "description": "Missing or invalid token" }
+        }
+      }
+    },
+    "/v1/models/{model_id}": {
+      "get": {
+        "summary": "Get model",
+        "description": "Forwards to upstream /v1/models/{model_id} via the matching provider.",
+        "security": [{ "BearerAuth": [] }],
+        "parameters": [
+          {
+            "name": "model_id",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "string" }
+          }
+        ],
+        "responses": {
+          "200": { "description": "Model metadata", "content": { "application/json": { "schema": { "type": "object" } } } },
+          "401": { "description": "Missing or invalid token" }
+        }
+      }
+    },
+    "/v1/tools": {
+      "get": {
+        "summary": "List tools",
+        "description": "Lists available upstream tools/functions via the first active provider.",
+        "security": [{ "BearerAuth": [] }],
+        "responses": {
+          "200": { "description": "Tool list", "content": { "application/json": { "schema": { "type": "object" } } } },
+          "401": { "description": "Missing or invalid token" }
+        }
+      }
+    },
+    "/v1/tools/execute": {
+      "post": {
+        "summary": "Execute tool",
+        "description": "Forwards upstream tool execution requests to the provider matched by model.",
+        "security": [{ "BearerAuth": [] }],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/ToolExecuteRequest" },
+              "example": {
+                "tool": "get_weather",
+                "model": "gpt-4",
+                "arguments": { "location": "San Francisco" }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": { "description": "Tool execution response", "content": { "application/json": { "schema": { "type": "object" } } } },
+          "401": { "description": "Missing or invalid token" },
+          "403": { "description": "Token not authorized for this model" }
+        }
+      }
+    }
+  }
+}

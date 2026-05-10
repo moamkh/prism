@@ -1,0 +1,133 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Reverse Proxy Status</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background: #f5f5f5; color: #333; padding: 24px; }
+  h1 { margin-bottom: 20px; font-size: 24px; }
+  .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 16px; margin-bottom: 24px; }
+  .card { background: #fff; border-radius: 8px; padding: 16px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); }
+  .card h3 { font-size: 13px; text-transform: uppercase; color: #666; margin-bottom: 8px; }
+  .card .value { font-size: 28px; font-weight: 600; color: #1a1a2e; }
+  .card .sub { font-size: 12px; color: #888; margin-top: 4px; }
+  table { width: 100%; border-collapse: collapse; background: #fff; border-radius: 8px; overflow: hidden; box-shadow: 0 1px 3px rgba(0,0,0,0.1); }
+  th, td { padding: 10px 12px; text-align: left; font-size: 13px; }
+  th { background: #eee; font-weight: 600; }
+  tr { border-bottom: 1px solid #eee; }
+  .ok { color: #27ae60; }
+  .warn { color: #e67e22; }
+  .err { color: #c0392b; }
+  .refresh { font-size: 12px; color: #666; margin-bottom: 12px; }
+  a { color: #1a1a2e; text-decoration: none; }
+  a:hover { text-decoration: underline; }
+</style>
+</head>
+<body>
+<h1>Reverse Proxy Status</h1>
+<div class="refresh">Auto-refreshes every 5s &middot; <a href="/metrics">Prometheus Metrics</a></div>
+
+<div class="grid">
+  <div class="card">
+    <h3>Uptime</h3>
+    <div class="value" id="uptime">-</div>
+    <div class="sub">Since start</div>
+  </div>
+  <div class="card">
+    <h3>DB Connections</h3>
+    <div class="value" id="db-conns">-</div>
+    <div class="sub" id="db-conns-sub">-</div>
+  </div>
+  <div class="card">
+    <h3>Usage Buffer</h3>
+    <div class="value" id="usage-buffer">-</div>
+    <div class="sub" id="usage-buffer-sub">-</div>
+  </div>
+  <div class="card">
+    <h3>Usage Dropped</h3>
+    <div class="value" id="usage-dropped">-</div>
+    <div class="sub">Total dropped logs</div>
+  </div>
+  <div class="card">
+    <h3>Total Requests</h3>
+    <div class="value" id="requests-total">-</div>
+    <div class="sub">Since start</div>
+  </div>
+  <div class="card">
+    <h3>Avg Latency</h3>
+    <div class="value" id="avg-latency">-</div>
+    <div class="sub">Last 60s average</div>
+  </div>
+</div>
+
+<h2 style="margin-bottom:12px;font-size:18px">Providers</h2>
+<table>
+  <thead>
+    <tr>
+      <th>Provider ID</th>
+      <th>Name</th>
+      <th>Max Concurrent</th>
+      <th>In-Flight</th>
+      <th>Utilization</th>
+    </tr>
+  </thead>
+  <tbody id="providers-tbody">
+    <tr><td colspan="5" style="text-align:center;color:#888">Loading...</td></tr>
+  </tbody>
+</table>
+
+<script>
+let startTime = Date.now();
+
+function fmtDuration(ms) {
+  const s = Math.floor(ms / 1000);
+  const m = Math.floor(s / 60);
+  const h = Math.floor(m / 60);
+  const d = Math.floor(h / 24);
+  if (d > 0) return d + 'd ' + (h % 24) + 'h';
+  if (h > 0) return h + 'h ' + (m % 60) + 'm';
+  return m + 'm ' + (s % 60) + 's';
+}
+
+async function load() {
+  try {
+    const res = await fetch('/api/status');
+    const data = await res.json();
+
+    document.getElementById('uptime').textContent = fmtDuration(Date.now() - new Date(data.started_at).getTime());
+    document.getElementById('db-conns').textContent = (data.db.in_use + data.db.idle);
+    document.getElementById('db-conns-sub').textContent = data.db.in_use + ' in use, ' + data.db.idle + ' idle';
+    document.getElementById('usage-buffer').textContent = data.usage.buffer_len;
+    document.getElementById('usage-buffer-sub').textContent = 'of ' + data.usage.buffer_cap + ' capacity';
+    document.getElementById('usage-dropped').textContent = data.usage.dropped;
+    document.getElementById('requests-total').textContent = data.requests.total.toLocaleString();
+    document.getElementById('avg-latency').textContent = data.requests.avg_latency_ms + ' ms';
+
+    const tbody = document.getElementById('providers-tbody');
+    if (data.providers && data.providers.length > 0) {
+      tbody.innerHTML = data.providers.map(p => {
+        const pct = p.max > 0 ? Math.round((p.inflight / p.max) * 100) : 0;
+        const cls = pct >= 90 ? 'err' : pct >= 70 ? 'warn' : 'ok';
+        return `<tr>
+          <td>${p.id}</td>
+          <td>${p.name}</td>
+          <td>${p.max}</td>
+          <td>${p.inflight}</td>
+          <td class="${cls}">${pct}%</td>
+        </tr>`;
+      }).join('');
+    } else {
+      tbody.innerHTML = '<tr><td colspan="5" style="text-align:center;color:#888">No active providers</td></tr>';
+    }
+  } catch (e) {
+    console.error('Failed to load status', e);
+  }
+}
+
+load();
+setInterval(load, 5000);
+</script>
+</body>
+</html>
