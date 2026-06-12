@@ -21,12 +21,14 @@ type Provider struct {
 }
 
 type Model struct {
-	ID             uuid.UUID `db:"id"`
-	ProviderID     uuid.UUID `db:"provider_id"`
-	ModelID        string    `db:"model_id"`
-	DisplayModelID *string   `db:"display_model_id"`
-	IsActive       bool      `db:"is_active"`
-	CreatedAt      int64     `db:"created_at"`
+	ID                    uuid.UUID `db:"id"`
+	ProviderID            uuid.UUID `db:"provider_id"`
+	ModelID               string    `db:"model_id"`
+	DisplayModelID        *string   `db:"display_model_id"`
+	MaxConcurrentRequests int       `db:"max_concurrent_requests"`
+	QueueSize             int       `db:"queue_size"`
+	IsActive              bool      `db:"is_active"`
+	CreatedAt             int64     `db:"created_at"`
 }
 
 type Token struct {
@@ -62,6 +64,8 @@ type UsageLog struct {
 	TotalTokens  int            `db:"total_tokens"`
 	LatencyMs    sql.NullInt32  `db:"latency_ms"`
 	StatusCode   sql.NullInt32  `db:"status_code"`
+	IsSuccessful bool           `db:"is_successful"`
+	ErrorMessage sql.NullString `db:"error_message"`
 	CreatedAt    int64          `db:"created_at"`
 }
 

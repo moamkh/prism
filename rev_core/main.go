@@ -21,6 +21,7 @@ import (
 	"rev_core/internal/middleware"
 	"rev_core/internal/proxy"
 	"rev_core/internal/usage"
+	"rev_core/internal/version"
 )
 
 //go:embed docs/swagger.json
@@ -56,14 +57,19 @@ func main() {
 	defer usageLogger.Stop()
 
 	lim := limiter.New(database)
+	modelLim := limiter.NewModelLimiter(database)
 	auth := middleware.NewAuth(database)
-	proxyHandler := proxy.New(database, usageLogger, lim)
+	proxyHandler := proxy.New(database, usageLogger, lim, modelLim)
 
 	// Public routes (no auth)
 	publicMux := http.NewServeMux()
 	publicMux.HandleFunc("/health", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		w.Write([]byte(`{"status":"ok"}`))
+	})
+	publicMux.HandleFunc("/api/version", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(map[string]string{"version": version.GetVersion()})
 	})
 	publicMux.HandleFunc("/docs", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "text/html; charset=utf-8")
@@ -90,6 +96,7 @@ func main() {
 		dbStats := database.Conn.Stats()
 		bufLen, bufCap, dropped := usageLogger.BufferStats()
 		limStatus := lim.Status()
+		modelLimStatus := modelLim.Status()
 
 		type providerStatus struct {
 			ID        string `json:"id"`
@@ -114,6 +121,29 @@ func main() {
 			})
 		}
 
+		type modelStatus struct {
+			ID       string `json:"id"`
+			Max      int    `json:"max"`
+			Inflight int    `json:"inflight"`
+			Queue    int    `json:"queue"`
+		}
+
+		modelsList, _ := database.GetAllModels()
+		modelMap := make(map[string]string)
+		for _, m := range modelsList {
+			modelMap[m.ID.String()] = m.ModelID
+		}
+
+		var modList []modelStatus
+		for id, st := range modelLimStatus {
+			modList = append(modList, modelStatus{
+				ID:       id.String(),
+				Max:      st.Max,
+				Inflight: st.Inflight,
+				Queue:    st.Queue,
+			})
+		}
+
 		total := atomic.LoadInt64(&metrics.RequestCount)
 		latencySum := atomic.LoadInt64(&metrics.RequestLatencySum)
 		avgLatency := int64(0)
@@ -133,6 +163,7 @@ func main() {
 				"dropped":    dropped,
 			},
 			"providers": provList,
+			"models":    modList,
 			"requests": map[string]interface{}{
 				"total":         total,
 				"avg_latency_ms": avgLatency,
@@ -245,7 +276,7 @@ func main() {
 		port = "8080"
 	}
 
-	log.Printf("Reverse proxy server starting on :%s", port)
+	log.Printf("Reverse proxy server v%s starting on :%s", version.GetVersion(), port)
 	log.Printf("Docs available at http://localhost:%s/docs", port)
 	log.Printf("Status panel available at http://localhost:%s/status", port)
 	log.Printf("Logs viewer available at http://localhost:%s/logs", port)

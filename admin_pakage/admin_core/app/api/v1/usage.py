@@ -19,6 +19,7 @@ def list_logs(
     provider_id: Optional[UUID] = None,
     start_date: Optional[datetime] = None,
     end_date: Optional[datetime] = None,
+    is_successful: Optional[bool] = None,
     db: Session = Depends(get_db),
 ):
     return crud_usage.get_multi(
@@ -30,6 +31,7 @@ def list_logs(
         provider_id=provider_id,
         start_date=start_date,
         end_date=end_date,
+        is_successful=is_successful,
     )
 
 
@@ -42,6 +44,7 @@ def list_logs_filtered(
     provider_id: Optional[UUID] = None,
     token_name: Optional[str] = None,
     provider_name: Optional[str] = None,
+    is_successful: Optional[bool] = None,
     start_date: Optional[datetime] = None,
     end_date: Optional[datetime] = None,
     db: Session = Depends(get_db),
@@ -55,6 +58,7 @@ def list_logs_filtered(
         provider_id=provider_id,
         token_name=token_name,
         provider_name=provider_name,
+        is_successful=is_successful,
         start_date=start_date,
         end_date=end_date,
     )
@@ -65,6 +69,7 @@ def list_logs_filtered(
         provider_id=provider_id,
         token_name=token_name,
         provider_name=provider_name,
+        is_successful=is_successful,
         start_date=start_date,
         end_date=end_date,
     )

@@ -40,6 +40,8 @@ class Model(Base):
     provider_id = Column(UUID(as_uuid=True), ForeignKey("providers.id", ondelete="CASCADE"), nullable=False)
     model_id = Column(String(255), nullable=False)
     display_model_id = Column(String(255), nullable=True)
+    max_concurrent_requests = Column(Integer, nullable=True)
+    queue_size = Column(Integer, nullable=True)
     is_active = Column(Boolean, default=True, nullable=False)
     created_at = Column(Integer, nullable=False)
 
@@ -97,6 +99,8 @@ class UsageLog(Base):
     total_tokens = Column(Integer, default=0, nullable=False)
     latency_ms = Column(Integer, nullable=True)
     status_code = Column(Integer, nullable=True)
+    is_successful = Column(Boolean, default=True, nullable=False)
+    error_message = Column(Text, nullable=True)
     created_at = Column(Integer, nullable=False)
 
     token = relationship("Token", back_populates="usage_logs")

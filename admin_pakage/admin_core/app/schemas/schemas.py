@@ -45,6 +45,8 @@ class ProviderOut(ProviderBase):
 class ModelBase(BaseModel):
     model_id: str
     display_model_id: Optional[str] = None
+    max_concurrent_requests: Optional[int] = None
+    queue_size: Optional[int] = None
     is_active: bool = True
 
 
@@ -55,6 +57,8 @@ class ModelCreate(ModelBase):
 class ModelUpdate(BaseModel):
     model_id: Optional[str] = None
     display_model_id: Optional[str] = None
+    max_concurrent_requests: Optional[int] = None
+    queue_size: Optional[int] = None
     is_active: Optional[bool] = None
 
 
@@ -159,6 +163,8 @@ class UsageLogOut(BaseModel):
     total_tokens: int
     latency_ms: Optional[int]
     status_code: Optional[int]
+    is_successful: bool = True
+    error_message: Optional[str] = None
     created_at: int
 
     @field_serializer("created_at")
@@ -171,6 +177,7 @@ class UsageLogTotals(BaseModel):
     total_input_tokens: int
     total_output_tokens: int
     total_tokens: int
+    failed_count: int = 0
 
 
 class UsageLogFilteredOut(BaseModel):

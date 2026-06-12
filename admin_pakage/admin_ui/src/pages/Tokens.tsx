@@ -341,15 +341,17 @@ export default function Tokens() {
                     <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
                       <strong>{u.model_name}</strong>
                       <span style={{ fontSize: 13, color: '#555' }}>
-                        {u.current_usage.toLocaleString()} / {u.max_tokens.toLocaleString()} tokens ({u.percentage}%)
+                        {u.max_tokens === 0
+                          ? `${u.current_usage.toLocaleString()} / ∞ tokens`
+                          : `${u.current_usage.toLocaleString()} / ${u.max_tokens.toLocaleString()} tokens (${u.percentage}%)`}
                       </span>
                     </div>
                     <div style={{ background: '#e0e0e0', borderRadius: 4, height: 20, overflow: 'hidden' }}>
                       <div
                         style={{
-                          width: `${Math.min(u.percentage, 100)}%`,
+                          width: u.max_tokens === 0 ? '0%' : `${Math.min(u.percentage, 100)}%`,
                           height: '100%',
-                          background: u.percentage >= 90 ? '#c0392b' : u.percentage >= 70 ? '#e67e22' : '#27ae60',
+                          background: u.max_tokens === 0 ? '#95a5a6' : u.percentage >= 90 ? '#c0392b' : u.percentage >= 70 ? '#e67e22' : '#27ae60',
                           borderRadius: 4,
                           transition: 'width 0.4s ease',
                         }}

@@ -17,6 +17,8 @@ export interface Model {
   provider_id: string;
   model_id: string;
   display_model_id: string | null;
+  max_concurrent_requests: number | null;
+  queue_size: number | null;
   is_active: boolean;
   created_at: string;
 }
@@ -58,6 +60,8 @@ export interface UsageLog {
   total_tokens: number;
   latency_ms: number | null;
   status_code: number | null;
+  is_successful: boolean;
+  error_message: string | null;
   created_at: string;
 }
 

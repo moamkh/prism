@@ -51,6 +51,21 @@ var (
 		Help: "Maximum allowed concurrent requests per provider",
 	}, []string{"provider_id"})
 
+	ModelLimiterInflight = promauto.NewGaugeVec(prometheus.GaugeOpts{
+		Name: "rev_proxy_model_limiter_inflight",
+		Help: "Current number of in-flight requests per model",
+	}, []string{"model_id"})
+
+	ModelLimiterMax = promauto.NewGaugeVec(prometheus.GaugeOpts{
+		Name: "rev_proxy_model_limiter_max",
+		Help: "Maximum allowed concurrent requests per model",
+	}, []string{"model_id"})
+
+	ModelLimiterQueue = promauto.NewGaugeVec(prometheus.GaugeOpts{
+		Name: "rev_proxy_model_limiter_queue",
+		Help: "Current number of queued requests per model",
+	}, []string{"model_id"})
+
 	// DB metrics
 	DBConnectionsInUse = promauto.NewGauge(prometheus.GaugeOpts{
 		Name: "rev_proxy_db_connections_in_use",

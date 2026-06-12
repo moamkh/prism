@@ -15,6 +15,7 @@ class CRUDUsage:
         provider_id: Optional[UUID] = None,
         token_name: Optional[str] = None,
         provider_name: Optional[str] = None,
+        is_successful: Optional[bool] = None,
         start_date: Optional[datetime] = None,
         end_date: Optional[datetime] = None,
     ):
@@ -31,6 +32,8 @@ class CRUDUsage:
         if provider_name:
             # provider_name is denormalized in UsageLog; prefer direct filter.
             q = q.filter(UsageLog.provider_name.ilike(f"%{provider_name}%"))
+        if is_successful is not None:
+            q = q.filter(UsageLog.is_successful == is_successful)
         if start_date:
             epoch = int(start_date.timestamp())
             q = q.filter(UsageLog.created_at >= epoch)
@@ -49,11 +52,12 @@ class CRUDUsage:
         provider_id: Optional[UUID] = None,
         token_name: Optional[str] = None,
         provider_name: Optional[str] = None,
+        is_successful: Optional[bool] = None,
         start_date: Optional[datetime] = None,
         end_date: Optional[datetime] = None,
     ) -> List[UsageLog]:
         q = self._build_filter_query(
-            db, token_id, model_id, provider_id, token_name, provider_name, start_date, end_date
+            db, token_id, model_id, provider_id, token_name, provider_name, is_successful, start_date, end_date
         )
         return q.order_by(UsageLog.created_at.desc()).offset(skip).limit(limit).all()
 
@@ -65,11 +69,12 @@ class CRUDUsage:
         provider_id: Optional[UUID] = None,
         token_name: Optional[str] = None,
         provider_name: Optional[str] = None,
+        is_successful: Optional[bool] = None,
         start_date: Optional[datetime] = None,
         end_date: Optional[datetime] = None,
     ) -> dict:
         q = self._build_filter_query(
-            db, token_id, model_id, provider_id, token_name, provider_name, start_date, end_date
+            db, token_id, model_id, provider_id, token_name, provider_name, is_successful, start_date, end_date
         )
         result = q.with_entities(
             func.count(UsageLog.id).label("count"),

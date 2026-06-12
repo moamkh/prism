@@ -11,6 +11,8 @@ interface Totals {
   total_tokens: number;
 }
 
+type SuccessFilter = 'all' | 'successful' | 'failed';
+
 export default function UsageLogs() {
   const [logs, setLogs] = useState<UsageLog[]>([]);
   const [totals, setTotals] = useState<Totals | null>(null);
@@ -24,6 +26,7 @@ export default function UsageLogs() {
   const [selectedProvider, setSelectedProvider] = useState<string | null>(null);
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState('');
+  const [successFilter, setSuccessFilter] = useState<SuccessFilter>('successful');
 
   const load = () => {
     const params: Record<string, unknown> = { skip: page * limit, limit };
@@ -31,6 +34,9 @@ export default function UsageLogs() {
     if (selectedProvider) params.provider_name = selectedProvider;
     if (startDate) params.start_date = new Date(startDate).toISOString();
     if (endDate) params.end_date = new Date(endDate).toISOString();
+    if (successFilter !== 'all') {
+      params.is_successful = successFilter === 'successful';
+    }
 
     usageApi.filtered(params).then((res) => {
       setLogs(res.data.logs || []);
@@ -45,7 +51,7 @@ export default function UsageLogs() {
 
   useEffect(() => {
     load();
-  }, [page, selectedToken, selectedProvider, startDate, endDate]);
+  }, [page, selectedToken, selectedProvider, startDate, endDate, successFilter]);
 
   const tokenOptions = tokens.map((t) => ({ value: t.name, label: t.name }));
   const providerOptions = providers.map((p) => ({ value: p.name, label: p.name }));
@@ -76,6 +82,18 @@ export default function UsageLogs() {
           onStartChange={(v) => { setStartDate(v); setPage(0); }}
           onEndChange={(v) => { setEndDate(v); setPage(0); }}
         />
+        <div>
+          <label style={{ display: 'block', fontSize: 12, fontWeight: 600, marginBottom: 4, color: '#555' }}>Status</label>
+          <select
+            value={successFilter}
+            onChange={(e) => { setSuccessFilter(e.target.value as SuccessFilter); setPage(0); }}
+            style={{ padding: '8px 12px', borderRadius: 4, border: '1px solid #ddd', fontSize: 14, minWidth: 140 }}
+          >
+            <option value="successful">Successful</option>
+            <option value="failed">Failed</option>
+            <option value="all">All</option>
+          </select>
+        </div>
       </div>
 
       {/* Totals */}
@@ -111,19 +129,35 @@ export default function UsageLogs() {
               </td>
             </tr>
           )}
-          {logs.map((log) => (
-            <tr key={log.id} style={{ borderBottom: '1px solid #eee' }}>
-              <td style={tdStyle}>{new Date(log.created_at).toLocaleString()}</td>
-              <td style={tdStyle}>{log.token_id ? tokens.find((t) => t.id === log.token_id)?.name || log.token_id.slice(0, 8) : '-'}</td>
-              <td style={tdStyle}>{log.provider_name || '-'}</td>
-              <td style={tdStyle}>{log.request_path}</td>
-              <td style={tdStyle}>{log.input_tokens.toLocaleString()}</td>
-              <td style={tdStyle}>{log.output_tokens.toLocaleString()}</td>
-              <td style={tdStyle}><strong>{log.total_tokens.toLocaleString()}</strong></td>
-              <td style={tdStyle}>{log.latency_ms}ms</td>
-              <td style={tdStyle}>{log.status_code}</td>
-            </tr>
-          ))}
+          {logs.map((log) => {
+            const failed = !log.is_successful;
+            const rowStyle: React.CSSProperties = failed
+              ? { borderBottom: '1px solid #eee', background: '#fff5f5' }
+              : { borderBottom: '1px solid #eee' };
+            return (
+              <tr
+                key={log.id}
+                style={rowStyle}
+                title={failed && log.error_message ? log.error_message : undefined}
+              >
+                <td style={tdStyle}>{new Date(log.created_at).toLocaleString()}</td>
+                <td style={tdStyle}>{log.token_id ? tokens.find((t) => t.id === log.token_id)?.name || log.token_id.slice(0, 8) : '-'}</td>
+                <td style={tdStyle}>{log.provider_name || '-'}</td>
+                <td style={tdStyle}>{log.request_path}</td>
+                <td style={tdStyle}>{log.input_tokens.toLocaleString()}</td>
+                <td style={tdStyle}>{log.output_tokens.toLocaleString()}</td>
+                <td style={tdStyle}><strong>{log.total_tokens.toLocaleString()}</strong></td>
+                <td style={tdStyle}>{log.latency_ms}ms</td>
+                <td style={tdStyle}>
+                  {failed ? (
+                    <span style={{ color: '#e74c3c', fontWeight: 600 }}>{log.status_code}</span>
+                  ) : (
+                    log.status_code
+                  )}
+                </td>
+              </tr>
+            );
+          })}
         </tbody>
       </table>
 

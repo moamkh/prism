@@ -29,15 +29,17 @@ type Proxy struct {
 	db              *db.DB
 	usage           *usage.Batcher
 	limiter         *limiter.Limiter
+	modelLimiter    *limiter.ModelLimiter
 	transportCache  map[uuid.UUID]*http.Transport
 	transportMu     sync.RWMutex
 }
 
-func New(database *db.DB, usageLogger *usage.Batcher, lim *limiter.Limiter) *Proxy {
+func New(database *db.DB, usageLogger *usage.Batcher, lim *limiter.Limiter, modelLim *limiter.ModelLimiter) *Proxy {
 	return &Proxy{
 		db:             database,
 		usage:          usageLogger,
 		limiter:        lim,
+		modelLimiter:   modelLim,
 		transportCache: make(map[uuid.UUID]*http.Transport),
 	}
 }
@@ -133,21 +135,58 @@ func isRetryableError(errStr string) bool {
 
 func (p *Proxy) Handler(w http.ResponseWriter, r *http.Request) {
 	start := time.Now()
+	var (
+		tokenUUID       uuid.UUID
+		providerID      uuid.UUID
+		modelUUID       uuid.UUID
+		providerModelID string
+		providerName    string
+		statusCode      int
+		errMsg          string
+		inputTokens     int
+		outputTokens    int
+	)
+
+	// Always log usage — successes and failures alike.
+	defer func() {
+		isSuccessful := statusCode >= 200 && statusCode < 300
+		p.usage.Log(
+			tokenUUID, providerID, modelUUID, providerModelID, providerName,
+			r.URL.Path, inputTokens, outputTokens,
+			int(time.Since(start).Milliseconds()), statusCode, isSuccessful, errMsg,
+		)
+	}()
 
 	modelIDStr := r.Header.Get("X-Proxy-Model-ID")
-	var modelUUID uuid.UUID
 	if modelIDStr != "" {
 		modelUUID = uuid.MustParse(modelIDStr)
 	}
 
-	provider, providerModelID, err := p.resolveProvider(modelUUID)
+	provider, pModelID, err := p.resolveProvider(modelUUID)
 	if err != nil {
+		statusCode = http.StatusBadRequest
+		errMsg = err.Error()
 		http.Error(w, fmt.Sprintf(`{"error":"%s"}`, err.Error()), http.StatusBadRequest)
 		return
+	}
+	providerID = provider.ID
+	providerName = provider.Name
+	providerModelID = pModelID
+
+	if p.modelLimiter != nil && modelUUID != uuid.Nil {
+		if err := p.modelLimiter.Acquire(r.Context(), modelUUID); err != nil {
+			statusCode = http.StatusTooManyRequests
+			errMsg = "Model concurrency limit reached or queue full"
+			http.Error(w, `{"error":"Model concurrency limit reached or queue full"}`, http.StatusTooManyRequests)
+			return
+		}
+		defer p.modelLimiter.Release(modelUUID)
 	}
 
 	if p.limiter != nil {
 		if err := p.limiter.Acquire(r.Context(), provider.ID); err != nil {
+			statusCode = http.StatusTooManyRequests
+			errMsg = "Too many concurrent requests for this provider, queue timeout"
 			http.Error(w, `{"error":"Too many concurrent requests for this provider, queue timeout"}`, http.StatusTooManyRequests)
 			return
 		}
@@ -155,13 +194,14 @@ func (p *Proxy) Handler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	tokenIDStr := r.Header.Get("X-Proxy-Token-ID")
-	var tokenUUID uuid.UUID
 	if tokenIDStr != "" {
 		tokenUUID = uuid.MustParse(tokenIDStr)
 	}
 
 	targetURL, err := url.Parse(provider.BaseURL)
 	if err != nil {
+		statusCode = http.StatusInternalServerError
+		errMsg = "Invalid provider base URL"
 		http.Error(w, `{"error":"Invalid provider base URL"}`, http.StatusInternalServerError)
 		return
 	}
@@ -233,9 +273,6 @@ func (p *Proxy) Handler(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	var inputTokens, outputTokens int
-	var statusCode int
-
 	if isStream {
 		recorder := &streamRecorder{
 			ResponseWriter: w,
@@ -248,6 +285,9 @@ func (p *Proxy) Handler(w http.ResponseWriter, r *http.Request) {
 		if recorder.statusCode != 0 {
 			statusCode = recorder.statusCode
 		}
+		if statusCode >= 400 {
+			errMsg = "Upstream error"
+		}
 	} else {
 		recorder := &responseRecorder{ResponseWriter: w}
 		proxy.ServeHTTP(recorder, r)
@@ -255,15 +295,15 @@ func (p *Proxy) Handler(w http.ResponseWriter, r *http.Request) {
 		if len(recorder.body) > 0 {
 			inputTokens, outputTokens = p.extractUsage(recorder.body, recorder.header().Get("Content-Encoding"))
 		}
+		if statusCode >= 400 {
+			errMsg = "Upstream error"
+		}
 		for k, v := range recorder.header() {
 			w.Header()[k] = v
 		}
 		w.WriteHeader(recorder.statusCode)
 		w.Write(recorder.body)
 	}
-
-	latency := int(time.Since(start).Milliseconds())
-	p.usage.Log(tokenUUID, provider.ID, modelUUID, providerModelID, provider.Name, r.URL.Path, inputTokens, outputTokens, latency, statusCode)
 }
 
 // HandleModelsList aggregates /v1/models from all active providers and filters

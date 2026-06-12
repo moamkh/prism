@@ -69,7 +69,7 @@ func (b *Batcher) flush(batch []models.UsageLog) {
 	}
 }
 
-func (b *Batcher) Log(tokenID, providerID, modelID uuid.UUID, modelName, providerName, path string, inputTokens, outputTokens, latencyMs, statusCode int) {
+func (b *Batcher) Log(tokenID, providerID, modelID uuid.UUID, modelName, providerName, path string, inputTokens, outputTokens, latencyMs, statusCode int, isSuccessful bool, errMsg string) {
 	select {
 	case b.buffer <- models.UsageLog{
 		ID:           uuid.New(),
@@ -84,6 +84,8 @@ func (b *Batcher) Log(tokenID, providerID, modelID uuid.UUID, modelName, provide
 		TotalTokens:  inputTokens + outputTokens,
 		LatencyMs:    intToNullInt32(latencyMs),
 		StatusCode:   intToNullInt32(statusCode),
+		IsSuccessful: isSuccessful,
+		ErrorMessage: stringToNull(errMsg),
 		CreatedAt:    nowEpoch(),
 	}:
 		metrics.UsageBufferLength.Set(float64(len(b.buffer)))

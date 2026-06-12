@@ -18,7 +18,7 @@ export default function ModelsPage() {
   const [selectedModelId, setSelectedModelId] = useState('');
   const [fetching, setFetching] = useState(false);
   const [detailModel, setDetailModel] = useState<FetchedModel | null>(null);
-  const [form, setForm] = useState({ provider_id: '', model_id: '', display_model_id: '', is_active: true });
+  const [form, setForm] = useState({ provider_id: '', model_id: '', display_model_id: '', max_concurrent_requests: '', queue_size: '', is_active: true });
 
   const load = () => {
     modelsApi.list().then((res) => setModels(res.data));
@@ -52,8 +52,16 @@ export default function ModelsPage() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    await modelsApi.create(form);
-    setForm({ provider_id: '', model_id: '', display_model_id: '', is_active: true });
+    const payload = {
+      provider_id: form.provider_id,
+      model_id: form.model_id,
+      display_model_id: form.display_model_id || undefined,
+      max_concurrent_requests: form.max_concurrent_requests ? parseInt(form.max_concurrent_requests) : undefined,
+      queue_size: form.queue_size ? parseInt(form.queue_size) : undefined,
+      is_active: form.is_active,
+    };
+    await modelsApi.create(payload);
+    setForm({ provider_id: '', model_id: '', display_model_id: '', max_concurrent_requests: '', queue_size: '', is_active: true });
     setSelectedProvider('');
     setFetchedModels([]);
     setSelectedModelId('');
@@ -137,6 +145,22 @@ export default function ModelsPage() {
             style={inputStyle}
           />
 
+          <input
+            type="number"
+            placeholder="Max Concurrent Requests"
+            value={form.max_concurrent_requests}
+            onChange={(e) => setForm({ ...form, max_concurrent_requests: e.target.value })}
+            style={inputStyle}
+          />
+
+          <input
+            type="number"
+            placeholder="Queue Size"
+            value={form.queue_size}
+            onChange={(e) => setForm({ ...form, queue_size: e.target.value })}
+            style={inputStyle}
+          />
+
           <label style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
             <input type="checkbox" checked={form.is_active} onChange={(e) => setForm({ ...form, is_active: e.target.checked })} />
             Active
@@ -163,6 +187,8 @@ export default function ModelsPage() {
             <th style={thStyle}>Model ID</th>
             <th style={thStyle}>Display ID</th>
             <th style={thStyle}>Provider</th>
+            <th style={thStyle}>Concurrency</th>
+            <th style={thStyle}>Queue</th>
             <th style={thStyle}>Active</th>
             <th style={thStyle}>Actions</th>
           </tr>
@@ -173,6 +199,8 @@ export default function ModelsPage() {
               <td style={tdStyle}>{m.model_id}</td>
               <td style={tdStyle}>{m.display_model_id || '-'}</td>
               <td style={tdStyle}>{providers.find((p) => p.id === m.provider_id)?.name || m.provider_id}</td>
+              <td style={tdStyle}>{m.max_concurrent_requests ?? '-'}</td>
+              <td style={tdStyle}>{m.queue_size ?? '-'}</td>
               <td style={tdStyle}>{m.is_active ? 'Yes' : 'No'}</td>
               <td style={tdStyle} onClick={(e) => e.stopPropagation()}>
                 <button onClick={() => toggle(m)} style={btnSmall}>{m.is_active ? 'Deactivate' : 'Activate'}</button>

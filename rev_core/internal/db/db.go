@@ -109,7 +109,7 @@ func (d *DB) GetActiveProviders() ([]models.Provider, error) {
 }
 
 func (d *DB) GetAllModels() ([]models.Model, error) {
-	rows, err := d.Conn.Query(`SELECT id, provider_id, model_id, display_model_id, is_active, created_at FROM models`)
+	rows, err := d.Conn.Query(`SELECT id, provider_id, model_id, display_model_id, max_concurrent_requests, queue_size, is_active, created_at FROM models`)
 	if err != nil {
 		return nil, err
 	}
@@ -118,7 +118,25 @@ func (d *DB) GetAllModels() ([]models.Model, error) {
 	var modelsList []models.Model
 	for rows.Next() {
 		var m models.Model
-		if err := rows.Scan(&m.ID, &m.ProviderID, &m.ModelID, &m.DisplayModelID, &m.IsActive, &m.CreatedAt); err != nil {
+		if err := rows.Scan(&m.ID, &m.ProviderID, &m.ModelID, &m.DisplayModelID, &m.MaxConcurrentRequests, &m.QueueSize, &m.IsActive, &m.CreatedAt); err != nil {
+			return nil, err
+		}
+		modelsList = append(modelsList, m)
+	}
+	return modelsList, rows.Err()
+}
+
+func (d *DB) GetActiveModels() ([]models.Model, error) {
+	rows, err := d.Conn.Query(`SELECT id, provider_id, model_id, display_model_id, max_concurrent_requests, queue_size, is_active, created_at FROM models WHERE is_active = true`)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var modelsList []models.Model
+	for rows.Next() {
+		var m models.Model
+		if err := rows.Scan(&m.ID, &m.ProviderID, &m.ModelID, &m.DisplayModelID, &m.MaxConcurrentRequests, &m.QueueSize, &m.IsActive, &m.CreatedAt); err != nil {
 			return nil, err
 		}
 		modelsList = append(modelsList, m)
@@ -180,8 +198,8 @@ func (d *DB) InsertUsageLogBatch(logs []models.UsageLog) error {
 	defer tx.Rollback()
 
 	stmt, err := tx.Prepare(`
-		INSERT INTO usage_logs (id, token_id, provider_id, model_id, model_name, provider_name, request_path, input_tokens, output_tokens, total_tokens, latency_ms, status_code, created_at)
-		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
+		INSERT INTO usage_logs (id, token_id, provider_id, model_id, model_name, provider_name, request_path, input_tokens, output_tokens, total_tokens, latency_ms, status_code, is_successful, error_message, created_at)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)
 	`)
 	if err != nil {
 		return err
@@ -202,6 +220,8 @@ func (d *DB) InsertUsageLogBatch(logs []models.UsageLog) error {
 			logEntry.TotalTokens,
 			logEntry.LatencyMs,
 			logEntry.StatusCode,
+			logEntry.IsSuccessful,
+			logEntry.ErrorMessage,
 			logEntry.CreatedAt,
 		)
 		if err != nil {

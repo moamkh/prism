@@ -32,6 +32,8 @@ class CRUDModel:
             provider_id=obj_in.provider_id,
             model_id=obj_in.model_id,
             display_model_id=obj_in.display_model_id,
+            max_concurrent_requests=obj_in.max_concurrent_requests,
+            queue_size=obj_in.queue_size,
             is_active=obj_in.is_active,
             created_at=now_epoch(),
         )
